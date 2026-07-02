@@ -55,6 +55,29 @@ partner-signing.pem  [WARNING]
 - **Fingerprints** — SHA-256 & SHA-1 (to confirm a partner imported the right cert)
 - **Warnings** — weak signature (SHA-1/MD5), short RSA keys, not-yet-valid
 
+## GitHub Action
+
+Add a certificate-expiry gate to CI. It fails the job if any matched certificate
+is expired or expiring within 14 days:
+
+```yaml
+# .github/workflows/certs.yml
+name: cert check
+on:
+  schedule: [{ cron: "0 8 * * 1" }]   # weekly, so you hear about expiry early
+  push:
+jobs:
+  as2-certs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: certcutover/as2inspect@v1
+        with:
+          path: "partner-certs/*.pem"
+```
+
+Only public certificates belong in a repo — never commit private keys.
+
 ## Safety
 
 Only **public** certificates are accepted. Private keys and PFX/PKCS#12 files are

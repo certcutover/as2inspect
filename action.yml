@@ -1,0 +1,55 @@
+name: "AS2 certificate check"
+description: "Fail CI when an AS2/X.509 certificate is expired or expiring soon. Wraps the as2inspect CLI."
+branding:
+  icon: "shield"
+  color: "yellow"
+
+inputs:
+  path:
+    description: "Glob of public certificates to check (e.g. 'certs/*.pem'). Space-separate multiple globs."
+    required: true
+  version:
+    description: "as2inspect release tag to use (e.g. v0.3.0), or 'latest'."
+    required: false
+    default: "latest"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run as2inspect
+      shell: bash
+      env:
+        AS2_PATH: ${{ inputs.path }}
+        AS2_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+
+        # Map the runner to a release asset name.
+        os="$(uname -s)"; arch="$(uname -m)"
+        case "$os" in
+          Linux)  goos=linux ;;
+          Darwin) goos=darwin ;;
+          *) echo "Unsupported OS: $os" >&2; exit 2 ;;
+        esac
+        case "$arch" in
+          x86_64|amd64) goarch=amd64 ;;
+          arm64|aarch64) goarch=arm64 ;;
+          *) echo "Unsupported arch: $arch" >&2; exit 2 ;;
+        esac
+        asset="as2inspect_${goos}_${goarch}"
+
+        repo="certcutover/as2inspect"
+        if [ "$AS2_VERSION" = "latest" ]; then
+          url="https://github.com/${repo}/releases/latest/download/${asset}"
+        else
+          url="https://github.com/${repo}/releases/download/${AS2_VERSION}/${asset}"
+        fi
+
+        echo "Downloading $asset ($AS2_VERSION)…"
+        curl -fsSL "$url" -o /tmp/as2inspect
+        chmod +x /tmp/as2inspect
+
+        # Non-zero exit if any certificate is expired or expiring within 14 days.
+        # shellcheck disable=SC2086  # deliberate word-split so globs expand
+        /tmp/as2inspect $AS2_PATH

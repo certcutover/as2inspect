@@ -5,17 +5,10 @@ name: release
 # GoReleaser then builds all binaries, creates the GitHub release with
 # checksums, and updates the Homebrew tap (yanzay/homebrew-tap) automatically.
 #
-# The tap update needs write access to a *different* repo than the default
-# GITHUB_TOKEN can reach. We mint a short-lived token from a GitHub App
-# (better hygiene than a long-lived PAT: auto-expires, own bot identity).
-#
-# One-time setup — create a GitHub App (github.com/settings/apps/new):
-#   - Permissions: Repository → Contents: Read and write
-#   - Install it on the `homebrew-tap` repo
-#   - Generate a private key (.pem)
-# Then add these secrets to THIS repo (yanzay/as2inspect):
-#   TAP_APP_ID           = the App's numeric ID
-#   TAP_APP_PRIVATE_KEY  = the full .pem contents
+# One-time setup: the tap update needs write access to a *different* repo than
+# the default GITHUB_TOKEN can reach. Create a fine-grained PAT scoped to the
+# `homebrew-tap` repo with Contents: Read and write, then add it to THIS repo
+# (yanzay/as2inspect) as the secret HOMEBREW_TAP_TOKEN.
 on:
   push:
     tags:
@@ -36,16 +29,6 @@ jobs:
         with:
           go-version: '1.26'
 
-      # Mint a short-lived installation token scoped to the tap repo.
-      - name: Mint tap token from GitHub App
-        id: tap_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.TAP_APP_ID }}
-          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
-          owner: yanzay
-          repositories: homebrew-tap
-
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -53,5 +36,5 @@ jobs:
         env:
           # Default token creates the release on THIS repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Short-lived App token with push access to the tap repo.
-          HOMEBREW_TAP_TOKEN: ${{ steps.tap_token.outputs.token }}
+          # Fine-grained PAT with push access to the tap repo (Contents: write).
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
